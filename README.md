@@ -4,7 +4,7 @@ This project uses Parallel pipeline. Here is the description
 
 The proposed system is built on three distinct but complementary components, each chosen to handle a specific layer of the occupancy estimation pipeline. Together they cover real-time object detection, persistent identity tracking and density-aware counting for regions where individual detection becomes unreliable.
 
-We used YOLO 11x + DeepSORT + DM count
+We used YOLO 11x + DeepSORT + DM count and Python as base.
 
 Motivation:
 
