@@ -1,0 +1,29 @@
+# Datasets
+dataset/
+dataset2/
+dataset.zip
+
+# Outputs
+outputs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Model weights
+*.pt
+*.pth
+*.ckpt
+
+# Virtual environments
+venv/
+.venv/
+
+# IDE files
+.vscode/
+.idea/
+
+
+# Videos
+temple_crowd_project/Video/
+*.mp4

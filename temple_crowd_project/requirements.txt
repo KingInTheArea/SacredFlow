@@ -1,0 +1,13 @@
+ultralytics
+opencv-python
+deep-sort-realtime
+pandas
+numpy
+ultralytics
+deep_sort_realtime
+torch
+torchvision
+opencv-python
+numpy
+scipy
+gdown
