@@ -87,314 +87,317 @@ unique_ids_seen = set()
 
 frame_id = 0
 SAVE_EVERY = 5
+
 # -----------------------------
 # Main Loop
 # -----------------------------
-while True:
+try:
+    while True:
 
-    ret, frame = cap.read()
-    if not ret:
-        print("Video finished.")
-        break
-    # -------------------------
-    # Frame Split
-    # -------------------------
-    split_y = int(video_height * SPLIT_RATIO)
+        ret, frame = cap.read()
+        if not ret:
+            print("Video finished.")
+            break
+        # -------------------------
+        # Frame Split
+        # -------------------------
+        split_y = int(video_height * SPLIT_RATIO)
 
-    far_field  = frame[0:split_y, :]          # top strip → DM-Count
-    near_field = frame[split_y:, :]           # bottom strip → YOLO (unchanged)
+        far_field  = frame[0:split_y, :]          # top strip → DM-Count
+        near_field = frame[split_y:, :]           # bottom strip → YOLO (unchanged)
 
-    # Draw split line on frame for debugging
-    cv2.line(frame, (0, split_y), (video_width, split_y), (255, 0, 255), 2)
+        # Draw split line on frame for debugging
+        cv2.line(frame, (0, split_y), (video_width, split_y), (255, 0, 255), 2)
+        # -------------------------
+        # DM-Count Inference (far field)
+        # -------------------------
+        dm_count = 0
+        if DMCOUNT_ENABLED:
+            pil_img = Image.fromarray(cv2.cvtColor(far_field, cv2.COLOR_BGR2RGB))
+            inp_tensor = transforms.ToTensor()(pil_img).unsqueeze(0).to(dm_device)
+            with torch.no_grad():
+                dm_outputs, _ = dm_model(inp_tensor)
+            dm_count = int(torch.sum(dm_outputs).item())
     # -------------------------
-    # DM-Count Inference (far field)
-    # -------------------------
-    dm_count = 0
-    if DMCOUNT_ENABLED:
-        pil_img = Image.fromarray(cv2.cvtColor(far_field, cv2.COLOR_BGR2RGB))
-        inp_tensor = transforms.ToTensor()(pil_img).unsqueeze(0).to(dm_device)
-        with torch.no_grad():
-            dm_outputs, _ = dm_model(inp_tensor)
-        dm_count = int(torch.sum(dm_outputs).item())
-# -------------------------
-    # DM-Count Density Map Overlay
-    # -------------------------
-    if DMCOUNT_ENABLED:
-        vis = dm_outputs[0, 0].cpu().numpy()
-        vis = (vis - vis.min()) / (vis.max() - vis.min() + 1e-5)
-        vis = (vis * 255).astype(np.uint8)
-        vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+        # DM-Count Density Map Overlay
+        # -------------------------
+        if DMCOUNT_ENABLED:
+            vis = dm_outputs[0, 0].cpu().numpy()
+            vis = (vis - vis.min()) / (vis.max() - vis.min() + 1e-5)
+            vis = (vis * 255).astype(np.uint8)
+            vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
 
-        # Resize density map to match the far_field strip size
-        vis_resized = cv2.resize(vis, (far_field.shape[1], far_field.shape[0]))
+            # Resize density map to match the far_field strip size
+            vis_resized = cv2.resize(vis, (far_field.shape[1], far_field.shape[0]))
 
-        # Blend onto the original frame (top strip only)
-        frame[0:split_y, :] = cv2.addWeighted(
-            frame[0:split_y, :], 0.5,
-            vis_resized, 0.5,
-            0
+            # Blend onto the original frame (top strip only)
+            frame[0:split_y, :] = cv2.addWeighted(
+                frame[0:split_y, :], 0.5,
+                vis_resized, 0.5,
+                0
+            )
+        # -------------------------
+        # YOLO Detection
+        # -------------------------
+        results = model.predict(
+        near_field,
+        conf=0.10,
+        classes=[0],
+        imgsz=1920,
+        verbose=False
         )
-    # -------------------------
-    # YOLO Detection
-    # -------------------------
-    results = model.predict(
-    near_field,
-    conf=0.10,
-    classes=[0],
-    imgsz=1920,
-    verbose=False
-    )
 
-    detections = []
-    points = []
+        detections = []
+        points = []
 
 
 
-    for r in results:
-        for box in r.boxes:
+        for r in results:
+            for box in r.boxes:
 
-            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-            y1 += split_y   # offset back to full frame coordinates
-            y2 += split_y
+                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                y1 += split_y   # offset back to full frame coordinates
+                y2 += split_y
 
-            conf = float(box.conf[0])
-            cx = (x1 + x2) / 2
-            cy = y1 + 0.18 * (y2 - y1)
+                conf = float(box.conf[0])
+                cx = (x1 + x2) / 2
+                cy = y1 + 0.18 * (y2 - y1)
 
-            points.append([cx, cy])
+                points.append([cx, cy])
 
-            detections.append(
-                (
-                    [x1, y1, x2 - x1, y2 - y1],
-                    conf,
-                    "person"
+                detections.append(
+                    (
+                        [x1, y1, x2 - x1, y2 - y1],
+                        conf,
+                        "person"
+                    )
                 )
+
+
+        # -------------------------
+        # DeepSORT Tracking
+        # -------------------------
+        tracks = tracker.update_tracks(
+        detections,
+        frame=frame
+        )
+
+        # YOLO detections count
+        detected_count = len(detections)
+
+        # Only confirmed DeepSORT tracks
+        active_tracks = [
+        track for track in tracks
+        if track.is_confirmed()
+        ]
+
+        # DeepSORT tracked count
+        tracked_count = len(active_tracks)
+        # -------------------------
+        # Dwell Tracker Update
+        # -------------------------
+        active_ids = {track.track_id for track in active_tracks}
+        dwell.update(active_ids, frame_id)
+        current_ids = set()
+
+        for track in active_tracks:
+
+            
+
+            tid = track.track_id
+            current_ids.add(tid)
+            # Add to all-time seen IDs
+            unique_ids_seen.add(tid)
+
+            x1, y1, x2, y2 = map(
+                int,
+                track.to_ltrb()
             )
 
+            cv2.rectangle(
+                frame,
+                (x1, y1),
+                (x2, y2),
+                (0, 255, 0),
+                2
+            )
+            live_secs = dwell.get_live_duration(tid, frame_id)
 
-    # -------------------------
-    # DeepSORT Tracking
-    # -------------------------
-    tracks = tracker.update_tracks(
-    detections,
-    frame=frame
-    )
+            draw_label(
+                frame,
+                f"ID {tid} | {live_secs}s",
+                x1,
+                max(20, y1 - 10),
+                (0, 255, 0)
+            )
 
-    # YOLO detections count
-    detected_count = len(detections)
+        # -------------------------
+        # Display Counts
+        # -------------------------
+        # Combined final count
+        final_count = tracked_count + dm_count
 
-    # Only confirmed DeepSORT tracks
-    active_tracks = [
-    track for track in tracks
-    if track.is_confirmed()
-    ]
+        draw_label(frame, f"Far Field (DM) : {dm_count}", 20, 160, (255, 128, 0))
+        draw_label(frame, f"TOTAL COUNT : {final_count}", 20, 200, (255, 255, 255))
+        count_buffer.append(final_count)
 
-    # DeepSORT tracked count
-    tracked_count = len(active_tracks)
-    # -------------------------
-    # Dwell Tracker Update
-    # -------------------------
-    active_ids = {track.track_id for track in active_tracks}
-    dwell.update(active_ids, frame_id)
-    current_ids = set()
-
-    for track in active_tracks:
-
-        
-
-        tid = track.track_id
-        current_ids.add(tid)
-        # Add to all-time seen IDs
-        unique_ids_seen.add(tid)
-
-        x1, y1, x2, y2 = map(
-            int,
-            track.to_ltrb()
-        )
-
-        cv2.rectangle(
-            frame,
-            (x1, y1),
-            (x2, y2),
-            (0, 255, 0),
-            2
-        )
-        live_secs = dwell.get_live_duration(tid, frame_id)
 
         draw_label(
             frame,
-            f"ID {tid} | {live_secs}s",
-            x1,
-            max(20, y1 - 10),
-            (0, 255, 0)
+            f"Detected : {detected_count}",
+            20,
+                40,
+        (0,255,255)
         )
 
-    # -------------------------
-    # Display Counts
-    # -------------------------
-    # Combined final count
-    final_count = tracked_count + dm_count
-
-    draw_label(frame, f"Far Field (DM) : {dm_count}", 20, 160, (255, 128, 0))
-    draw_label(frame, f"TOTAL COUNT : {final_count}", 20, 200, (255, 255, 255))
-    count_buffer.append(final_count)
-
-
-    draw_label(
-        frame,
-        f"Detected : {detected_count}",
-        20,
-            40,
-    (0,255,255)
-    )
-
-    draw_label(
-        frame,
-        f"Tracked : {tracked_count}",
-        20,
-        80,
-        (0,0,255)
-    )
-
-    draw_label(
-        frame,
-        f"Unique Seen : {len(unique_ids_seen)}",
-        20,
-        120,
-        (255,255,0)
-    )
-    annPoints = np.array(
-    points,
-    dtype=np.float32
-    )
-    if frame_id % SAVE_EVERY == 0:
-
-
-        image_name = f"img_{frame_id:05d}.jpg"
-        mat_name = f"img_{frame_id:05d}.mat"
-
-
-        cv2.imwrite(
-
-            f"C:/temple_crowd_project/dataset/images/{image_name}",
-
-            frame
-
+        draw_label(
+            frame,
+            f"Tracked : {tracked_count}",
+            20,
+            80,
+            (0,0,255)
         )
 
+        draw_label(
+            frame,
+            f"Unique Seen : {len(unique_ids_seen)}",
+            20,
+            120,
+            (255,255,0)
+        )
+        annPoints = np.array(
+        points,
+        dtype=np.float32
+        )
+        if frame_id % SAVE_EVERY == 0:
 
-        savemat(
 
-            f"C:/temple_crowd_project/dataset/ground_truth/{mat_name}",
+            image_name = f"img_{frame_id:05d}.jpg"
+            mat_name = f"img_{frame_id:05d}.mat"
 
 
-            {
+            cv2.imwrite(
 
-                'annPoints':annPoints
+                f"C:/temple_crowd_project/dataset/images/{image_name}",
 
-            }
+                frame
 
+            )
+
+
+            savemat(
+
+                f"C:/temple_crowd_project/dataset/ground_truth/{mat_name}",
+
+
+                {
+
+                    'annPoints':annPoints
+
+                }
+
+            )
+
+
+            print(
+
+                f"Saved {image_name}"
+
+            )
+    
+        # DEBUG
+        # print(points[:5])
+        # -------------------------
+        # Auto Resize Display
+        # -------------------------
+        h, w = frame.shape[:2]
+
+        scale = min(
+            MAX_W / w,
+            MAX_H / h
         )
 
+        new_w = int(w * scale)
+        new_h = int(h * scale)
 
-        print(
-
-            f"Saved {image_name}"
-
-        )
-  
-    # DEBUG
-    # print(points[:5])
-    # -------------------------
-    # Auto Resize Display
-    # -------------------------
-    h, w = frame.shape[:2]
-
-    scale = min(
-        MAX_W / w,
-        MAX_H / h
-    )
-
-    new_w = int(w * scale)
-    new_h = int(h * scale)
-
-    display_frame = cv2.resize(
-        frame,
-        (new_w, new_h),
-        interpolation=cv2.INTER_AREA
-    )
-
-    cv2.imshow(
-        "Temple Crowd Monitoring",
-        display_frame
-    )
-
-    # -------------------------
-    # Save Average Count
-    # -------------------------
-    if time.time() - last_save_time >= COUNT_INTERVAL:
-
-        avg_count = (
-            int(sum(count_buffer) / len(count_buffer))
-            if count_buffer
-            else 0
+        display_frame = cv2.resize(
+            frame,
+            (new_w, new_h),
+            interpolation=cv2.INTER_AREA
         )
 
-        log_count(
-            CSV_PATH,
-            avg_count
+        cv2.imshow(
+            "Temple Crowd Monitoring",
+            display_frame
         )
 
-        print(
-            f"Logged Count: {avg_count}"
-        )
+        # -------------------------
+        # Save Average Count
+        # -------------------------
+        if time.time() - last_save_time >= COUNT_INTERVAL:
 
-        count_buffer = []
+            avg_count = (
+                int(sum(count_buffer) / len(count_buffer))
+                if count_buffer
+                else 0
+            )
 
-        last_save_time = time.time()
+            log_count(
+                CSV_PATH,
+                avg_count
+            )
 
-    # -------------------------
-    # Exit
-    # -------------------------
-    frame_id += 1
+            print(
+                f"Logged Count: {avg_count}"
+            )
 
-    key = cv2.waitKey(1) & 0xFF
+            count_buffer = []
 
-    if key == ord("q"):
-        break
+            last_save_time = time.time()
+
+        # -------------------------
+        # Exit
+        # -------------------------
+        frame_id += 1
+
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == ord("q"):
+            break
 # -----------------------------
 # Dwell Tracker Finalise
 # -----------------------------
-dwell.finalise(frame_id)
-print(f"DwellTracker finalised. Total IDs tracked: {len(dwell.completed)}")
 # -----------------------------
-# Dwell Time Report
+# Cleanup + Report (always runs)
 # -----------------------------
-report = dwell.report()
+except KeyboardInterrupt:
+    print("\nInterrupted by user — saving report...")
 
-print("\n========== DWELL TIME REPORT ==========")
-print(f"Total IDs tracked     : {report['total_ids']}")
-print(f"Mean dwell time       : {report['mean_dwell_sec']} seconds")
-print("----------------------------------------")
-print("Per-ID breakdown:")
-for tid, duration in sorted(report['per_id'].items()):
-    print(f"  ID {tid:>4} : {duration:.2f} seconds")
-print("========================================\n")
-# -----------------------------
-# Save Dwell Report to JSON
-# -----------------------------
-import json
+finally:
+    # Dwell Tracker Finalise
+    dwell.finalise(frame_id)
+    print(f"DwellTracker finalised. Total IDs tracked: {len(dwell.completed)}")
 
-report_path = r"C:\temple_crowd_project\outputs\dwell_report.json"
+    # Dwell Time Report
+    report = dwell.report()
 
-with open(report_path, "w") as f:
-    json.dump(report, f, indent=4)
+    print("\n========== DWELL TIME REPORT ==========")
+    print(f"Total IDs tracked     : {report['total_ids']}")
+    print(f"Mean dwell time       : {report['mean_dwell_sec']} seconds")
+    print("----------------------------------------")
+    print("Per-ID breakdown:")
+    for tid, duration in sorted(report['per_id'].items()):
+        print(f"  ID {tid:>4} : {duration:.2f} seconds")
+    print("========================================\n")
 
-print(f"Dwell report saved to: {report_path}")
-# -----------------------------
-# Cleanup
-# -----------------------------
-cap.release()
-cv2.destroyAllWindows()
+    # Save JSON
+    import json
+    report_path = r"C:\temple_crowd_project\outputs\dwell_report.json"
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=4)
+    print(f"Dwell report saved to: {report_path}")
 
-print("Finished.")
+    # Cleanup
+    cap.release()
+    cv2.destroyAllWindows()
+    print("Finished.")

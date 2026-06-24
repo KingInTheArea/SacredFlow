@@ -13,3 +13,11 @@ DMCOUNT_MODEL_PATH = r"C:\temple_crowd_project\DM-Count\pretrained_models\model_
 DMCOUNT_REPO_PATH  = r"C:\temple_crowd_project\DM-Count"
 SPLIT_RATIO        = 0.4   # top 40% of frame goes to DM-Count
 DMCOUNT_ENABLED    = True  # set False to disable without removing code
+
+# -----------------------------
+# Frame Skip Configuration
+# -----------------------------
+DM_SKIP_INTERVAL   = 1   # Run DM-Count every N frames (1 = every frame, no skip)
+YOLO_SKIP_INTERVAL = 1   # Run YOLO every N frames (1 = every frame, no skip)
+BENCHMARK_MODE     = False  # Set True to print per-stage timing to terminal
+BENCHMARK_FRAMES   = 100    # Number of frames to average timing over
