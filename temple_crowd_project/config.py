@@ -17,7 +17,7 @@ DMCOUNT_ENABLED    = True  # set False to disable without removing code
 # -----------------------------
 # Frame Skip Configuration
 # -----------------------------
-DM_SKIP_INTERVAL   = 1   # Run DM-Count every N frames (1 = every frame, no skip)
+DM_SKIP_INTERVAL   = 10   # Run DM-Count every N frames (1 = every frame, no skip)
 YOLO_SKIP_INTERVAL = 1   # Run YOLO every N frames (1 = every frame, no skip)
-BENCHMARK_MODE     = False  # Set True to print per-stage timing to terminal
-BENCHMARK_FRAMES   = 100    # Number of frames to average timing over
+BENCHMARK_MODE     = True  # Set True to print per-stage timing to terminal
+BENCHMARK_FRAMES   = 20    # Number of frames to average timing over

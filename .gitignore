@@ -1,29 +1,47 @@
-# Datasets
+# Datasets (auto-exported frames + ground-truth, not source code)
 dataset/
 dataset2/
-dataset.zip
+*.mat
+*.zip
 
-# Outputs
-outputs/
+# Outputs — kept tracked (screenshots, sample reports, logs are useful evidence)
+# but exclude obvious clutter/temp files if any land here
+outputs/*.tmp
+outputs/*.bak
 
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
 
-# Model weights
+# Model weights (downloaded separately, see README)
 *.pt
 *.pth
 *.ckpt
+DM-Count/pretrained_models/
 
 # Virtual environments
 venv/
 .venv/
+env/
 
 # IDE files
 .vscode/
 .idea/
 
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python packaging cruft
+*.egg-info/
+build/
+dist/
 
 # Videos
 temple_crowd_project/Video/
 *.mp4
+*.avi
+
+# Misc
+*.tmp

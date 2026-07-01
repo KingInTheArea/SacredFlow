@@ -87,13 +87,26 @@ unique_ids_seen = set()
 
 frame_id = 0
 SAVE_EVERY = 5
+# -----------------------------
+# Benchmark Timing Setup
+# -----------------------------
+t_dm_total    = 0.0
+t_yolo_total  = 0.0
+t_frame_total = 0.0
+bench_count   = 0
+# -----------------------------
+# Frame Skip Cache
+# -----------------------------
+last_dm_count   = 0
+last_dm_outputs = None
+last_vis_resized = None
 
 # -----------------------------
 # Main Loop
 # -----------------------------
 try:
     while True:
-
+        t0_frame = time.time()
         ret, frame = cap.read()
         if not ret:
             print("Video finished.")
@@ -111,67 +124,80 @@ try:
         # -------------------------
         # DM-Count Inference (far field)
         # -------------------------
-        dm_count = 0
-        if DMCOUNT_ENABLED:
+        # -------------------------
+        # DM-Count Inference (far field) with frame skipping
+        # -------------------------
+        t0_dm = time.time()
+        if DMCOUNT_ENABLED and (frame_id % DM_SKIP_INTERVAL == 0):
+            # Run inference this frame
             pil_img = Image.fromarray(cv2.cvtColor(far_field, cv2.COLOR_BGR2RGB))
             inp_tensor = transforms.ToTensor()(pil_img).unsqueeze(0).to(dm_device)
             with torch.no_grad():
                 dm_outputs, _ = dm_model(inp_tensor)
-            dm_count = int(torch.sum(dm_outputs).item())
-    # -------------------------
-        # DM-Count Density Map Overlay
-        # -------------------------
-        if DMCOUNT_ENABLED:
+            last_dm_count = int(torch.sum(dm_outputs).item())
+
+            # Build and cache the density map overlay
             vis = dm_outputs[0, 0].cpu().numpy()
             vis = (vis - vis.min()) / (vis.max() - vis.min() + 1e-5)
             vis = (vis * 255).astype(np.uint8)
             vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+            last_vis_resized = cv2.resize(vis, (far_field.shape[1], far_field.shape[0]))
 
-            # Resize density map to match the far_field strip size
-            vis_resized = cv2.resize(vis, (far_field.shape[1], far_field.shape[0]))
+        # Always use last known values (reuse on skipped frames)
+        dm_count = last_dm_count
+        t_dm_total += time.time() - t0_dm
 
-            # Blend onto the original frame (top strip only)
+        # -------------------------
+        # DM-Count Density Map Overlay (reuse cached on skipped frames)
+        # -------------------------
+        if DMCOUNT_ENABLED and last_vis_resized is not None:
             frame[0:split_y, :] = cv2.addWeighted(
                 frame[0:split_y, :], 0.5,
-                vis_resized, 0.5,
+                last_vis_resized, 0.5,
                 0
             )
         # -------------------------
         # YOLO Detection
         # -------------------------
-        results = model.predict(
-        near_field,
-        conf=0.10,
-        classes=[0],
-        imgsz=1920,
-        verbose=False
-        )
-
+        # -------------------------
+        # YOLO Detection with frame skipping
+        # -------------------------
+        t0_yolo = time.time()
         detections = []
-        points = []
+        points     = []
 
+        if frame_id % YOLO_SKIP_INTERVAL == 0:
+            # Run full YOLO detection this frame
+            results = model.predict(
+                near_field,
+                conf=0.10,
+                classes=[0],
+                imgsz=1280,
+                verbose=False
+            )
 
+            for r in results:
+                for box in r.boxes:
 
-        for r in results:
-            for box in r.boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                    y1 += split_y
+                    y2 += split_y
 
-                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                y1 += split_y   # offset back to full frame coordinates
-                y2 += split_y
+                    conf = float(box.conf[0])
+                    cx = (x1 + x2) / 2
+                    cy = y1 + 0.18 * (y2 - y1)
 
-                conf = float(box.conf[0])
-                cx = (x1 + x2) / 2
-                cy = y1 + 0.18 * (y2 - y1)
+                    points.append([cx, cy])
 
-                points.append([cx, cy])
-
-                detections.append(
-                    (
-                        [x1, y1, x2 - x1, y2 - y1],
-                        conf,
-                        "person"
+                    detections.append(
+                        (
+                            [x1, y1, x2 - x1, y2 - y1],
+                            conf,
+                            "person"
+                        )
                     )
-                )
+
+        t_yolo_total += time.time() - t0_yolo
 
 
         # -------------------------
@@ -358,13 +384,35 @@ try:
         # -------------------------
         # Exit
         # -------------------------
+        t_frame_total += time.time() - t0_frame
+        bench_count   += 1
+
+        # -------------------------
+        # Benchmark Print
+        # -------------------------
+        if BENCHMARK_MODE and bench_count == BENCHMARK_FRAMES:
+            avg_dm    = (t_dm_total   / bench_count) * 1000
+            avg_yolo  = (t_yolo_total / bench_count) * 1000
+            avg_frame = (t_frame_total / bench_count) * 1000
+            avg_fps   = 1000 / avg_frame if avg_frame > 0 else 0
+
+            print(f"\n===== BENCHMARK ({bench_count} frames) =====")
+            print(f"  DM-Count  avg : {avg_dm:.1f} ms/frame")
+            print(f"  YOLO      avg : {avg_yolo:.1f} ms/frame")
+            print(f"  Full frame avg: {avg_frame:.1f} ms/frame")
+            print(f"  Effective FPS : {avg_fps:.2f}")
+            print(f"==========================================\n")
+
+            # Reset for next window
+            t_dm_total = t_yolo_total = t_frame_total = 0.0
+            bench_count = 0
+
         frame_id += 1
 
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
             break
-# -----------------------------
 # Dwell Tracker Finalise
 # -----------------------------
 # -----------------------------
