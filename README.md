@@ -100,10 +100,10 @@ The two outputs — a far-field density count and a near-field tracked-identity 
 
 Metrics below are from live testing on real temple crowd footage. Where a metric is based on informal observation rather than a rigorous benchmark, that is noted explicitly — this project prioritizes honest, verifiable numbers over polished-sounding ones.
 
-- **Combined real-time occupancy estimate of 300–330 people per frame**, sustained consistently across a multi-minute logged session on live temple footage (not a single spike — verified via periodic count logging).
+- **Combined real-time occupancy estimate of 330-350 people per frame**, sustained consistently across a multi-minute logged session on live temple footage (not a single spike — verified via periodic count logging).
 - **100+ concurrently identity-tracked individuals** in the near field at a single point in time, with **110+ unique identities** tracked across the session, via YOLO11x + DeepSORT.
-- **200+ additional individuals estimated in the far field** via DM-Count density estimation, in regions where per-person detection is not reliable.
-- **Accuracy validation:** informally cross-checked against manually eyeballed counts on ~30–40 sample frames from real footage; no ground-truth-labeled validation set has been used yet for a rigorous, reproducible accuracy metric. Formal validation against labeled data is a planned next step.
+- **230+ additional individuals estimated in the far field** via DM-Count density estimation, in regions where per-person detection is not reliable.
+- **Accuracy validation:** informally cross-checked against manually eyeballed counts on ~30–40 sample frames from real footage; It was also observed during live execution of app.py where total count was visible and could ne eyeballed against actual number but no ground-truth-labeled validation set has been used yet for a rigorous, reproducible accuracy metric. Formal validation against labeled data is a planned next step.
 - **Per-identity dwell-time tracking**, computing how long each tracked individual remains in frame — intended as a proxy for estimating average time-to-darshan (time to reach the front of a temple queue), to support crowd flow planning.
 - **~76.5% reduction in per-frame compute time (4.3x FPS improvement)** via adaptive frame-skipping for the far-field density estimation branch, benchmarked on real footage with instrumented timing (full breakdown below).
 
