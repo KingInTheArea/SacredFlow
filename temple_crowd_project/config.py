@@ -1,6 +1,7 @@
 VIDEO_SOURCE = r"C:\temple_crowd_project\temple_crowd_project\Video\new.mp4" 
 #We can use rstv link instead for real time video feed
 MODEL_PATH = "models/yolo26l.pt"
+# To use yolo v26 for better result
 CONF_THRES = 0.15
 COUNT_INTERVAL = 10
 CSV_PATH = "outputs/counts.csv"
