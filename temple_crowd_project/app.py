@@ -24,7 +24,7 @@ from PIL import Image
 ensure_dirs(CSV_PATH, SNAPSHOT_DIR)
 init_csv(CSV_PATH)
 
-# Dataset folders for Bayesian Loss
+# Dataset folders for DM count
 import os
 
 os.makedirs("dataset2/images", exist_ok=True)
@@ -38,7 +38,7 @@ tracker = DeepSort(max_age=30)
 # -----------------------------
 # DM-Count Setup
 # -----------------------------
-dm_device = torch.device('cpu')  # AMD integrated GPU — CPU only
+dm_device = torch.device('cpu')  # CPU only
 
 if DMCOUNT_ENABLED:
     print("Loading DM-Count model...")
@@ -172,7 +172,7 @@ try:
                 near_field,
                 conf=0.10,
                 classes=[0],
-                imgsz=1280,
+                imgsz=1920,
                 verbose=False
             )
 
