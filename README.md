@@ -22,13 +22,13 @@ A single detection model cannot handle both regimes well. SacredFlow addresses t
 The frame is split into two regions along a configurable horizontal ratio (currently top 40% / bottom 60%):
 
 - **Far field (top of frame):** Individual detection is unreliable here, so SacredFlow uses **DM-Count**, a density-estimation model (VGG19-based, pretrained on ShanghaiTech Part A — a dataset whose crowd density characteristics closely resemble Indian temple crowds) that predicts a density map and integrates it into a count, without needing to detect individual bounding boxes.
-- **Near field (bottom of frame):** Individuals are visible and separable, so SacredFlow uses **YOLO11x** for detection, feeding results into **DeepSORT** for identity-persistent multi-object tracking. This maintains consistent IDs across frames despite partial occlusion, enabling per-person dwell-time measurement.
+- **Near field (bottom of frame):** Individuals are visible and separable, so SacredFlow uses **YOLO26l** for detection, feeding results into **DeepSORT** for identity-persistent multi-object tracking. This maintains consistent IDs across frames despite partial occlusion, enabling per-person dwell-time measurement.
 
 The two outputs — a far-field density count and a near-field tracked-identity count — are combined into a single real-time occupancy estimate.
 
 ### Why this model combination
 
-- **YOLO11x** was chosen as a state-of-the-art real-time object detector with strong small-object and dense-scene performance.
+- **YOLO26l** was chosen as a state-of-the-art real-time object detector with strong small-object and dense-scene performance.
 - **DeepSORT** was added specifically to combat occlusion-driven ID loss, which is common in dense, non-queued crowds.
 - **DM-Count** was selected after evaluating Bayesian Loss-based counting approaches; DM-Count's pretrained ShanghaiTech-A weights offered better out-of-the-box performance on far-field, high-density regions without requiring temple-specific fine-tuning.
 
@@ -86,7 +86,7 @@ The two outputs — a far-field density count and a near-field tracked-identity 
 
 | Component | Technology |
 |---|---|
-| Detection | YOLO11x (Ultralytics) |
+| Detection | YOLO26l (Ultralytics) |
 | Tracking | DeepSORT (`deep-sort-realtime`) |
 | Far-field density estimation | DM-Count (VGG19 backbone, pretrained on ShanghaiTech Part A) |
 | Video I/O & visualization | OpenCV |
@@ -101,7 +101,7 @@ The two outputs — a far-field density count and a near-field tracked-identity 
 Metrics below are from live testing on real temple crowd footage. Where a metric is based on informal observation rather than a rigorous benchmark, that is noted explicitly — this project prioritizes honest, verifiable numbers over polished-sounding ones.
 
 - **Combined real-time occupancy estimate of 330-350 people per frame**, sustained consistently across a multi-minute logged session on live temple footage (not a single spike — verified via periodic count logging).
-- **100+ concurrently identity-tracked individuals** in the near field at a single point in time, with **110+ unique identities** tracked across the session, via YOLO11x + DeepSORT.
+- **100+ concurrently identity-tracked individuals** in the near field at a single point in time, with **110+ unique identities** tracked across the session, via YOLO26l + DeepSORT.
 - **230+ additional individuals estimated in the far field** via DM-Count density estimation, in regions where per-person detection is not reliable.
 - **Accuracy validation:** informally cross-checked against manually eyeballed counts on ~30–40 sample frames from real footage; It was also observed during live execution of app.py where total count was visible and could ne eyeballed against actual number but no ground-truth-labeled validation set has been used yet for a rigorous, reproducible accuracy metric. Formal validation against labeled data is a planned next step.
 - **Per-identity dwell-time tracking**, computing how long each tracked individual remains in frame — intended as a proxy for estimating average time-to-darshan (time to reach the front of a temple queue), to support crowd flow planning.
@@ -109,7 +109,7 @@ Metrics below are from live testing on real temple crowd footage. Where a metric
 
 ### Adaptive Frame Skipping — ~76.5% compute reduction, 4.3x FPS improvement
 
-The two inference branches (YOLO11x detection, DM-Count density estimation) originally ran on every frame. Since far-field crowd density changes slowly relative to frame rate, DM-Count was moved to a skip-and-cache pattern; YOLO was left running every frame after skipping was found to break tracking. All figures below are measured on CPU (AMD integrated GPU — no CUDA available), averaged over stable 20-frame windows with the first window excluded to remove model warm-up bias.
+The two inference branches (YOLO26l detection, DM-Count density estimation) originally ran on every frame. Since far-field crowd density changes slowly relative to frame rate, DM-Count was moved to a skip-and-cache pattern; YOLO was left running every frame after skipping was found to break tracking. All figures below are measured on CPU (AMD integrated GPU — no CUDA available), averaged over stable 20-frame windows with the first window excluded to remove model warm-up bias.
 
 **Baseline (no skipping, `imgsz=1920`):**
 
@@ -171,13 +171,13 @@ pip install -r DM-Count/requirements.txt
 
 ### Model weights
 
-- **YOLO11x weights** (`yolo11x.pt`) — download from the [Ultralytics releases](https://github.com/ultralytics/assets/releases) and place in `models/`.
+- **YOLO26l weights** (`yolo26l.pt`) — download from the [Ultralytics releases](https://github.com/ultralytics/assets/releases) and place in `models/`.
 - **DM-Count pretrained weights** (`model_sh_A.pth`, trained on ShanghaiTech Part A) — place in `DM-Count/pretrained_models/`.
 
 Update paths in `config.py` to match your local setup:
 
 ```python
-MODEL_PATH          = "models/yolo11x.pt"
+MODEL_PATH          = "models/yolo26l.pt"
 DMCOUNT_MODEL_PATH  = "DM-Count/pretrained_models/model_sh_A.pth"
 DMCOUNT_REPO_PATH   = "DM-Count"
 SPLIT_RATIO         = 0.4     # top 40% of frame -> DM-Count far field
