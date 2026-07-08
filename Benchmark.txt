@@ -1,0 +1,8 @@
+===== BENCHMARK for Byte Track(20 frames) =====
+  DM-Count  avg : 973.0 ms/frame
+  YOLO      avg : 1326.8 ms/frame
+  Full frame avg: 2354.5 ms/frame
+  Effective FPS : 0.42
+==========================================
+
+I pasted outputs in its branch outputs folder
