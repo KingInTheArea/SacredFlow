@@ -3,7 +3,7 @@ import time
 from scipy.io import savemat
 import numpy as np
 from ultralytics import YOLO
-from deep_sort_realtime.deepsort_tracker import DeepSort
+# from deep_sort_realtime.deepsort_tracker import DeepSort
 from config import *
 from utils import ensure_dirs, init_csv, log_count, draw_label
 from dwell_tracker import DwellTracker
@@ -33,9 +33,9 @@ os.makedirs("dataset2/ground_truth", exist_ok=True)
 print("Loading YOLO model...")
 model = YOLO(MODEL_PATH)
 
-print("Loading DeepSORT...")
-tracker = DeepSort(max_age=30)
-# -----------------------------
+# print("Loading DeepSORT...")
+# tracker = DeepSort(max_age=30)
+# # -----------------------------
 # DM-Count Setup
 # -----------------------------
 dm_device = torch.device('cpu')  # CPU only
@@ -78,7 +78,7 @@ cv2.namedWindow("Temple Crowd Monitoring", cv2.WINDOW_NORMAL)
 
 # Maximum display size
 MAX_W = 1280
-MAX_H = 720
+MAX_H = 720 # 1280
 
 last_save_time = time.time()
 count_buffer = []
@@ -168,34 +168,27 @@ try:
 
         if frame_id % YOLO_SKIP_INTERVAL == 0:
             # Run full YOLO detection this frame
-            results = model.predict(
-                near_field,
-                conf=0.10,
-                classes=[0],
-                imgsz=1920,
-                verbose=False
+            # WITH this:
+            results = model.track(
+             near_field,
+             conf=0.10,
+             classes=[0],
+             imgsz=1280,
+             tracker="bytetrack.yaml",
+             persist=True,
+             verbose=False
             )
 
             for r in results:
                 for box in r.boxes:
-
                     x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
                     y1 += split_y
                     y2 += split_y
-
                     conf = float(box.conf[0])
                     cx = (x1 + x2) / 2
                     cy = y1 + 0.18 * (y2 - y1)
-
                     points.append([cx, cy])
-
-                    detections.append(
-                        (
-                            [x1, y1, x2 - x1, y2 - y1],
-                            conf,
-                            "person"
-                        )
-                    )
+                    detections.append([x1, y1, x2, y2, conf])  # kept for detected_count
 
         t_yolo_total += time.time() - t0_yolo
 
@@ -203,60 +196,88 @@ try:
         # -------------------------
         # DeepSORT Tracking
         # -------------------------
-        tracks = tracker.update_tracks(
-        detections,
-        frame=frame
-        )
+        # tracks = tracker.update_tracks(
+        # detections,
+        # frame=frame
+        # )
 
-        # YOLO detections count
-        detected_count = len(detections)
+        # # YOLO detections count
+        # detected_count = len(detections)
 
-        # Only confirmed DeepSORT tracks
-        active_tracks = [
-        track for track in tracks
-        if track.is_confirmed()
-        ]
+        # # Only confirmed DeepSORT tracks
+        # active_tracks = [
+        # track for track in tracks
+        # if track.is_confirmed()
+        # ]
 
-        # DeepSORT tracked count
-        tracked_count = len(active_tracks)
+        # # DeepSORT tracked count
+        # tracked_count = len(active_tracks)
         # -------------------------
         # Dwell Tracker Update
         # -------------------------
-        active_ids = {track.track_id for track in active_tracks}
-        dwell.update(active_ids, frame_id)
-        current_ids = set()
+        # active_ids = {track.track_id for track in active_tracks}
+        # dwell.update(active_ids, frame_id)
+        # current_ids = set()
 
-        for track in active_tracks:
+        # for track in active_tracks:
 
             
 
-            tid = track.track_id
-            current_ids.add(tid)
-            # Add to all-time seen IDs
-            unique_ids_seen.add(tid)
+        #     tid = track.track_id
+        #     current_ids.add(tid)
+        #     # Add to all-time seen IDs
+        #     unique_ids_seen.add(tid)
 
-            x1, y1, x2, y2 = map(
-                int,
-                track.to_ltrb()
-            )
+        #     x1, y1, x2, y2 = map(
+        #         int,
+        #         track.to_ltrb()
+        #     )
 
-            cv2.rectangle(
-                frame,
-                (x1, y1),
-                (x2, y2),
-                (0, 255, 0),
-                2
-            )
-            live_secs = dwell.get_live_duration(tid, frame_id)
+            # cv2.rectangle(
+            #     frame,
+            #     (x1, y1),
+            #     (x2, y2),
+            #     (0, 255, 0),
+            #     2
+            # )
+            # live_secs = dwell.get_live_duration(tid, frame_id)
 
-            draw_label(
-                frame,
-                f"ID {tid} | {live_secs}s",
-                x1,
-                max(20, y1 - 10),
-                (0, 255, 0)
-            )
+            # draw_label(
+            #     frame,
+            #     f"ID {tid} | {live_secs}s",
+            #     x1,
+            #     max(20, y1 - 10),
+            #     (0, 255, 0)
+            # )
+        detected_count = len(detections)
+        active_ids = set()
+        tracked_count = 0
 
+        for r in results:
+            for box in r.boxes:
+                if box.id is None:
+                    continue  # ByteTrack hasn't assigned an ID yet
+                tid = int(box.id[0])
+                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                y1 += split_y
+                y2 += split_y
+
+                active_ids.add(tid)
+                unique_ids_seen.add(tid)
+                tracked_count += 1
+
+                live_secs = dwell.get_live_duration(tid, frame_id)
+
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                draw_label(
+                    frame,
+                    f"ID {tid} | {live_secs}s",
+                    x1,
+                    max(20, y1 - 10),
+                    (0, 255, 0)
+                )
+
+        dwell.update(active_ids, frame_id)
         # -------------------------
         # Display Counts
         # -------------------------
