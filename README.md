@@ -22,13 +22,13 @@ A single detection model cannot handle both regimes well. SacredFlow addresses t
 The frame is split into two regions along a configurable horizontal ratio (currently top 40% / bottom 60%):
 
 - **Far field (top of frame):** Individual detection is unreliable here, so SacredFlow uses **DM-Count**, a density-estimation model (VGG19-based, pretrained on ShanghaiTech Part A — a dataset whose crowd density characteristics closely resemble Indian temple crowds) that predicts a density map and integrates it into a count, without needing to detect individual bounding boxes.
-- **Near field (bottom of frame):** Individuals are visible and separable, so SacredFlow uses **YOLO26l** for detection, feeding results into **DeepSORT** for identity-persistent multi-object tracking. This maintains consistent IDs across frames despite partial occlusion, enabling per-person dwell-time measurement.
+- **Near field (bottom of frame):** Individuals are visible and separable, so SacredFlow uses **YOLO11x** for detection, feeding results into **DeepSORT** for identity-persistent multi-object tracking. This maintains consistent IDs across frames despite partial occlusion, enabling per-person dwell-time measurement.
 
 The two outputs — a far-field density count and a near-field tracked-identity count — are combined into a single real-time occupancy estimate.
 
 ### Why this model combination
 
-- **YOLO26l** was chosen as a state-of-the-art real-time object detector with strong small-object and dense-scene performance.
+- **YOLO11x** was chosen as a state-of-the-art real-time object detector with strong small-object and dense-scene performance.
 - **DeepSORT** was added specifically to combat occlusion-driven ID loss, which is common in dense, non-queued crowds.
 - **DM-Count** was selected after evaluating Bayesian Loss-based counting approaches; DM-Count's pretrained ShanghaiTech-A weights offered better out-of-the-box performance on far-field, high-density regions without requiring temple-specific fine-tuning.
 
