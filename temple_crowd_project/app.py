@@ -170,9 +170,9 @@ try:
             # Run full YOLO detection this frame
             results = model.predict(
                 near_field,
-                conf=0.10,
+                conf=0.20, #use .10 as standard
                 classes=[0],
-                imgsz=1920,
+                imgsz=1920,# values 1920, 1280, 1088
                 verbose=False
             )
 
