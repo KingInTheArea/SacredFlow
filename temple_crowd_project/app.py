@@ -122,9 +122,6 @@ try:
         # Draw split line on frame for debugging
         cv2.line(frame, (0, split_y), (video_width, split_y), (255, 0, 255), 2)
         # -------------------------
-        # DM-Count Inference (far field)
-        # -------------------------
-        # -------------------------
         # DM-Count Inference (far field) with frame skipping
         # -------------------------
         t0_dm = time.time()
@@ -299,7 +296,7 @@ try:
 
 
             image_name = f"img_{frame_id:05d}.jpg"
-            mat_name = f"img_{frame_id:05d}.mat"
+            # mat_name = f"img_{frame_id:05d}.mat"
 
 
             cv2.imwrite(
@@ -311,18 +308,18 @@ try:
             )
 
 
-            savemat(
+            # savemat(
 
-                f"C:/temple_crowd_project/dataset/ground_truth/{mat_name}",
+            #     f"C:/temple_crowd_project/dataset/ground_truth/{mat_name}",
 
 
-                {
+            #     {
 
-                    'annPoints':annPoints
+            #         'annPoints':annPoints
 
-                }
+            #     }
 
-            )
+            # )
 
 
             print(
