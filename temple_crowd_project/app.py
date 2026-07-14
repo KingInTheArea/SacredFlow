@@ -172,7 +172,7 @@ try:
                 near_field,
                 conf=0.10,
                 classes=[0],
-                imgsz=1920,
+                imgsz=1280,
                 verbose=False
             )
 
@@ -299,7 +299,7 @@ try:
 
 
             image_name = f"img_{frame_id:05d}.jpg"
-            mat_name = f"img_{frame_id:05d}.mat"
+           
 
 
             cv2.imwrite(
@@ -311,18 +311,7 @@ try:
             )
 
 
-            savemat(
-
-                f"C:/temple_crowd_project/dataset/ground_truth/{mat_name}",
-
-
-                {
-
-                    'annPoints':annPoints
-
-                }
-
-            )
+            
 
 
             print(
