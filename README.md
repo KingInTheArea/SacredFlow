@@ -220,8 +220,4 @@ SacredFlow/
 └── LICENSE
 ```
 
----
 
-## License
-
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details. The vendored `DM-Count/` framework retains its own original license and README from the [official DM-Count repository](https://github.com/cvlab-stonybrook/DM-Count); it is included unmodified for attribution and reproducibility.
